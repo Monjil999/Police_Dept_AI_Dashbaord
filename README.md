@@ -292,12 +292,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Streamlit** for rapid web app development
 - **Police Data Initiative** for open data standards
 
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/Monjil999/Police_Dept_AI_Dashbaord/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Monjil999/Police_Dept_AI_Dashbaord/discussions)
-- **Email**: [Your Email]
-
 ---
 
 **Built with ❤️ for police transparency and data-driven accountability**
