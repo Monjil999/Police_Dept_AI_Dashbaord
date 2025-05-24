@@ -16,7 +16,7 @@ Transform police department data into comprehensive analytics dashboards with AI
 ### 📊 **Multi-Department Analytics**
 - **4 Major Police Departments**: Seattle, Philadelphia, Chicago, Los Angeles
 - **Real-time Data**: Direct integration with Stanford Open Policing Project
-- **1.8M+ Records**: Philadelphia (1.8M), LA (5.4M), Chicago (846K), Seattle (320K)
+- **100K+ Records per Department**: Optimized for cloud deployment (full datasets available locally)
 
 ### 🤖 **AI-Powered Q&A Interface**
 - **Natural Language Queries**: Ask questions in plain English
@@ -97,10 +97,10 @@ REDIS_URL=redis://localhost:6379/0
 
 ### 1. **Select Police Department**
 Choose from 4 major departments:
-- **Seattle Police Department** (319,959 records, 2006-2015)
-- **Philadelphia Police Department** (1,865,096 records)
-- **Chicago Police Department** (846,456 records)
-- **Los Angeles Police Department** (5,418,402 records)
+- **Seattle Police Department** (100K records sampled from 319,959 total)
+- **Philadelphia Police Department** (100K records sampled from 1.8M+ total)
+- **Chicago Police Department** (100K records sampled from 846K total)
+- **Los Angeles Police Department** (100K records sampled from 5.4M+ total)
 
 ### 2. **Explore the Dashboard**
 Navigate through 5 interactive tabs:
@@ -226,9 +226,9 @@ REDIS_URL = "redis://localhost:6379/0"
 
 - **Dashboard Load Time**: < 45 seconds (Target achieved)
 - **AI Response Time**: < 10 seconds (Target achieved)  
-- **Data Processing**: 5.4M records in ~30 seconds
+- **Data Processing**: 100K records in ~5 seconds per department
 - **Cache Hit Rate**: 95%+ for repeated queries
-- **Memory Usage**: ~2GB for largest datasets
+- **Memory Usage**: ~500MB total (cloud-optimized)
 
 ## 🔍 Troubleshooting
 

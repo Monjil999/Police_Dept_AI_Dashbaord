@@ -171,14 +171,14 @@ class RealDataFetcher:
                             raise ValueError("No CSV file found in ZIP archive")
                         
                         with z.open(csv_files[0]) as csv_file:
-                            # Read real data - full dataset now (removed 5000 limit)
-                            df = pd.read_csv(csv_file, low_memory=False, encoding='utf-8', on_bad_lines='skip')
+                            # Read real data - limited to 100K rows for Streamlit Cloud compatibility
+                            df = pd.read_csv(csv_file, low_memory=False, encoding='utf-8', on_bad_lines='skip', nrows=100000)
                 elif attempt_url.endswith('.xlsx') or attempt_url.endswith('.xls'):
-                    # Handle Excel files (NYC format) - full dataset
-                    df = pd.read_excel(io.BytesIO(response.content), engine='openpyxl')
+                    # Handle Excel files (NYC format) - limited to 100K rows
+                    df = pd.read_excel(io.BytesIO(response.content), engine='openpyxl', nrows=100000)
                 else:
-                    # Handle direct CSV (backup URLs) - full dataset
-                    df = pd.read_csv(io.StringIO(response.text), low_memory=False, encoding='utf-8', on_bad_lines='skip')
+                    # Handle direct CSV (backup URLs) - limited to 100K rows
+                    df = pd.read_csv(io.StringIO(response.text), low_memory=False, encoding='utf-8', on_bad_lines='skip', nrows=100000)
                 
                 download_time = time.time() - start_time
                 
@@ -300,6 +300,11 @@ class RealDataFetcher:
             except:
                 pass
         
+        # Add sampling info if data was limited
+        description = data_source['description']
+        if len(df) == 100000:
+            description += " (sampled - first 100K rows for cloud compatibility)"
+        
         metadata = {
             "source": data_source['source'],
             "url": data_source['url'],
@@ -312,7 +317,7 @@ class RealDataFetcher:
                 "end_date": end_date
             },
             "real_data": True,  # This is REAL data
-            "description": data_source['description']
+            "description": description
         }
         
         return metadata
