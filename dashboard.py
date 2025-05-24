@@ -423,13 +423,74 @@ class PoliceDashboard:
     def create_outcome_distribution(self, df: pd.DataFrame) -> go.Figure:
         """Create stop outcome distribution pie chart."""
         try:
-            if 'stop_outcome' not in df.columns:
-                fig = go.Figure()
-                fig.add_annotation(text="Outcome data not available", x=0.5, y=0.5)
+            # Check multiple possible outcome columns
+            outcome_columns = ['stop_outcome', 'stop_result', 'outcome', 'result']
+            outcome_col = None
+            
+            for col in outcome_columns:
+                if col in df.columns:
+                    outcome_col = col
+                    break
+            
+            if outcome_col is None:
+                # Create synthetic outcomes based on available data
+                synthetic_outcomes = []
+                if 'arrest_made' in df.columns:
+                    arrests = df['arrest_made'].sum() if df['arrest_made'].dtype in ['int64', 'float64', 'bool'] else len(df[df['arrest_made'] == 1])
+                    if arrests > 0:
+                        synthetic_outcomes.append(('Arrest', arrests))
+                
+                if 'citation_issued' in df.columns:
+                    citations = df['citation_issued'].sum() if df['citation_issued'].dtype in ['int64', 'float64', 'bool'] else len(df[df['citation_issued'] == 1])
+                    if citations > 0:
+                        synthetic_outcomes.append(('Citation', citations))
+                
+                if 'warning_issued' in df.columns:
+                    warnings = df['warning_issued'].sum() if df['warning_issued'].dtype in ['int64', 'float64', 'bool'] else len(df[df['warning_issued'] == 1])
+                    if warnings > 0:
+                        synthetic_outcomes.append(('Warning', warnings))
+                
+                # Calculate "Other" category
+                total_with_outcomes = sum([count for _, count in synthetic_outcomes])
+                other_count = len(df) - total_with_outcomes
+                if other_count > 0:
+                    synthetic_outcomes.append(('Other/No Action', other_count))
+                
+                if synthetic_outcomes:
+                    fig = px.pie(
+                        values=[count for _, count in synthetic_outcomes],
+                        names=[name for name, _ in synthetic_outcomes],
+                        title='Distribution of Stop Outcomes (Reconstructed)'
+                    )
+                    return fig
+                else:
+                    fig = go.Figure()
+                    fig.add_annotation(text="Outcome data not available", x=0.5, y=0.5)
+                    return fig
+            
+            # Use existing outcome column
+            outcome_counts = df[outcome_col].value_counts().head(10)
+            
+            # Special handling for single outcome (like Philadelphia PD with only "arrest")
+            if len(outcome_counts) == 1:
+                # Show a bar chart instead of pie chart for single outcomes
+                fig = go.Figure(data=[
+                    go.Bar(
+                        x=[outcome_counts.index[0]],
+                        y=[outcome_counts.values[0]],
+                        text=[f"{outcome_counts.values[0]:,}"],
+                        textposition='auto',
+                    )
+                ])
+                fig.update_layout(
+                    title=f'Stop Outcomes: {outcome_counts.index[0].title()} Only',
+                    xaxis_title='Outcome Type',
+                    yaxis_title='Number of Stops',
+                    showlegend=False
+                )
                 return fig
             
-            outcome_counts = df['stop_outcome'].value_counts().head(10)  # Top 10 outcomes
-            
+            # Multiple outcomes - use pie chart
             fig = px.pie(
                 values=outcome_counts.values,
                 names=outcome_counts.index,
@@ -454,38 +515,88 @@ class PoliceDashboard:
                        [{'type': 'histogram'}, {'type': 'bar'}]]
             )
             
-            # Race distribution
-            if 'driver_race' in df.columns:
-                race_counts = df['driver_race'].value_counts().head(8)
-                fig.add_trace(
-                    go.Bar(x=race_counts.index, y=race_counts.values, name='Race'),
-                    row=1, col=1
-                )
+            # Race distribution - check multiple column names
+            race_columns = ['driver_race', 'subject_race', 'race', 'ethnicity']
+            race_col = None
+            for col in race_columns:
+                if col in df.columns and df[col].notna().sum() > 0:
+                    race_col = col
+                    break
             
-            # Gender distribution  
-            if 'driver_gender' in df.columns:
-                gender_counts = df['driver_gender'].value_counts()
-                fig.add_trace(
-                    go.Bar(x=gender_counts.index, y=gender_counts.values, name='Gender'),
-                    row=1, col=2
-                )
+            if race_col:
+                race_counts = df[race_col].value_counts().head(8)
+                if len(race_counts) > 0:
+                    fig.add_trace(
+                        go.Bar(x=race_counts.index, y=race_counts.values, name='Race', marker_color='#1f77b4'),
+                        row=1, col=1
+                    )
+                else:
+                    fig.add_annotation(text="No race data", x=0.5, y=0.5, xref="x1", yref="y1", showarrow=False)
+            else:
+                fig.add_annotation(text="Race data not available", x=0.5, y=0.5, xref="x1", yref="y1", showarrow=False)
             
-            # Age distribution
-            if 'driver_age' in df.columns:
-                valid_ages = df['driver_age'].dropna()
+            # Gender distribution - check multiple column names
+            gender_columns = ['driver_gender', 'subject_gender', 'gender', 'sex']
+            gender_col = None
+            for col in gender_columns:
+                if col in df.columns and df[col].notna().sum() > 0:
+                    gender_col = col
+                    break
+            
+            if gender_col:
+                gender_counts = df[gender_col].value_counts()
+                if len(gender_counts) > 0:
+                    fig.add_trace(
+                        go.Bar(x=gender_counts.index, y=gender_counts.values, name='Gender', marker_color='#ff7f0e'),
+                        row=1, col=2
+                    )
+                else:
+                    fig.add_annotation(text="No gender data", x=0.5, y=0.5, xref="x2", yref="y2", showarrow=False)
+            else:
+                fig.add_annotation(text="Gender data not available", x=0.5, y=0.5, xref="x2", yref="y2", showarrow=False)
+            
+            # Age distribution - check multiple column names
+            age_columns = ['driver_age', 'subject_age', 'age']
+            age_col = None
+            for col in age_columns:
+                if col in df.columns and df[col].notna().sum() > 0:
+                    age_col = col
+                    break
+            
+            if age_col:
+                # Clean and convert age data
+                ages = pd.to_numeric(df[age_col], errors='coerce')
+                valid_ages = ages[(ages > 0) & (ages < 120)].dropna()
+                
                 if len(valid_ages) > 0:
                     fig.add_trace(
-                        go.Histogram(x=valid_ages, name='Age', nbinsx=20),
+                        go.Histogram(x=valid_ages, name='Age', nbinsx=20, marker_color='#2ca02c'),
                         row=2, col=1
                     )
+                else:
+                    fig.add_annotation(text="No valid age data", x=0.5, y=0.5, xref="x3", yref="y3", showarrow=False)
+            else:
+                fig.add_annotation(text="Age data not available", x=0.5, y=0.5, xref="x3", yref="y3", showarrow=False)
             
-            # District distribution
-            if 'district' in df.columns:
-                district_counts = df['district'].value_counts().head(10)
-                fig.add_trace(
-                    go.Bar(x=district_counts.index, y=district_counts.values, name='District'),
-                    row=2, col=2
-                )
+            # District distribution - check multiple column names
+            district_columns = ['district', 'police_district', 'precinct', 'beat', 'sector']
+            district_col = None
+            for col in district_columns:
+                if col in df.columns and df[col].notna().sum() > 0:
+                    district_col = col
+                    break
+            
+            if district_col:
+                district_counts = df[district_col].value_counts().head(10)
+                if len(district_counts) > 0:
+                    fig.add_trace(
+                        go.Bar(x=district_counts.index, y=district_counts.values, name='District', marker_color='#d62728'),
+                        row=2, col=2
+                    )
+                else:
+                    fig.add_annotation(text="No district data", x=0.5, y=0.5, xref="x4", yref="y4", showarrow=False)
+            else:
+                fig.add_annotation(text="District data not available", x=0.5, y=0.5, xref="x4", yref="y4", showarrow=False)
             
             fig.update_layout(
                 height=600,
@@ -493,12 +604,23 @@ class PoliceDashboard:
                 title_text="Demographic Analysis"
             )
             
+            # Update axis labels
+            fig.update_xaxes(title_text="Race", row=1, col=1)
+            fig.update_xaxes(title_text="Gender", row=1, col=2)
+            fig.update_xaxes(title_text="Age", row=2, col=1)
+            fig.update_xaxes(title_text="District", row=2, col=2)
+            
+            fig.update_yaxes(title_text="Count", row=1, col=1)
+            fig.update_yaxes(title_text="Count", row=1, col=2)
+            fig.update_yaxes(title_text="Count", row=2, col=1)
+            fig.update_yaxes(title_text="Count", row=2, col=2)
+            
             return fig
             
         except Exception as e:
             logger.error(f"Error creating demographic analysis: {e}")
             fig = go.Figure()
-            fig.add_annotation(text="Demographic analysis unavailable", x=0.5, y=0.5)
+            fig.add_annotation(text=f"Demographic analysis unavailable: {str(e)}", x=0.5, y=0.5)
             return fig
     
     def create_hourly_pattern_chart(self, df: pd.DataFrame) -> go.Figure:

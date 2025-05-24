@@ -162,89 +162,149 @@ Columns: {columns_list}
             # Simple direct query generation based on question patterns
             question_lower = question.lower()
             
+            # Get table info for schema awareness
+            table_info = self.get_table_info(department)
+            available_columns = table_info.get('columns', []) if table_info else []
+            
+            # Find appropriate race column
+            race_columns = ['driver_race', 'subject_race', 'race', 'ethnicity']
+            race_col = None
+            for col in race_columns:
+                if col in available_columns:
+                    race_col = col
+                    break
+            
+            # Find appropriate outcome columns
+            outcome_columns = ['stop_outcome', 'arrest_made', 'citation_issued', 'warning_issued']
+            outcome_cols = [col for col in outcome_columns if col in available_columns]
+            
             # Basic pattern matching for common queries with better logic
             if 'total number of stops' in question_lower or 'how many stops' in question_lower:
                 sql_query = f"SELECT COUNT(*) as total_stops FROM {table_name}"
                 
-            elif 'how many arrests' in question_lower and 'race' not in question_lower:
-                sql_query = f"SELECT COUNT(*) as total_arrests FROM {table_name} WHERE arrest_made = 1"
+            elif 'arrest' in question_lower and any(race in question_lower for race in ['black', 'white', 'hispanic', 'asian']):
+                # Handle race-specific arrest queries
+                race = None
+                if 'black' in question_lower:
+                    race = 'black'
+                elif 'white' in question_lower:
+                    race = 'white'
+                elif 'hispanic' in question_lower:
+                    race = 'hispanic'
+                elif 'asian' in question_lower:
+                    race = 'asian'
                 
-            elif 'arrest rate' in question_lower and ('black' in question_lower and 'white' in question_lower):
-                # Comparative arrest rate query
-                sql_query = f"""
-                SELECT driver_race, 
-                       COUNT(*) as total_stops,
-                       SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) as arrests,
-                       ROUND(100.0 * SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) / COUNT(*), 2) as arrest_rate
-                FROM {table_name} 
-                WHERE driver_race IN ('black', 'white') 
-                GROUP BY driver_race 
-                ORDER BY arrest_rate DESC
-                """
-                
-            elif 'arrest' in question_lower and 'race' in question_lower:
-                sql_query = f"""
-                SELECT driver_race, 
-                       COUNT(*) as total_stops,
-                       SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) as arrests,
-                       ROUND(100.0 * SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) / COUNT(*), 2) as arrest_rate
-                FROM {table_name} 
-                WHERE driver_race IS NOT NULL 
-                GROUP BY driver_race 
-                ORDER BY arrests DESC
-                """
-                
-            elif 'citation' in question_lower and 'issued' in question_lower:
-                sql_query = f"SELECT COUNT(*) as total_citations FROM {table_name} WHERE citation_issued = 1"
-                
-            elif 'warning' in question_lower and 'issued' in question_lower:
-                sql_query = f"SELECT COUNT(*) as total_warnings FROM {table_name} WHERE warning_issued = 1"
-                
+                if race and race_col:
+                    if 'arrest_made' in available_columns:
+                        sql_query = f"""
+                        SELECT COUNT(*) as arrest_count 
+                        FROM {table_name} 
+                        WHERE LOWER({race_col}) = '{race}' AND arrest_made = 1
+                        """
+                    elif 'stop_outcome' in available_columns:
+                        sql_query = f"""
+                        SELECT COUNT(*) as arrest_count 
+                        FROM {table_name} 
+                        WHERE LOWER({race_col}) = '{race}' AND LOWER(stop_outcome) LIKE '%arrest%'
+                        """
+                    else:
+                        # Fallback: just count by race
+                        sql_query = f"""
+                        SELECT COUNT(*) as stops_count 
+                        FROM {table_name} 
+                        WHERE LOWER({race_col}) = '{race}'
+                        """
+                else:
+                    # No race column available
+                    sql_query = f"SELECT 'Race data not available in this dataset' as message, 0 as count"
+                    
+            elif 'arrest' in question_lower and 'rate' in question_lower and 'difference' in question_lower:
+                # Handle comparative arrest rate queries
+                if race_col and 'arrest_made' in available_columns:
+                    sql_query = f"""
+                    SELECT 
+                        {race_col} as race,
+                        COUNT(*) as total_stops,
+                        SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) as arrests,
+                        ROUND((SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)), 2) as arrest_rate
+                    FROM {table_name} 
+                    WHERE {race_col} IS NOT NULL AND LOWER({race_col}) IN ('black', 'white')
+                    GROUP BY {race_col}
+                    ORDER BY arrest_rate DESC
+                    """
+                elif race_col and 'stop_outcome' in available_columns:
+                    sql_query = f"""
+                    SELECT 
+                        {race_col} as race,
+                        COUNT(*) as total_stops,
+                        SUM(CASE WHEN LOWER(stop_outcome) LIKE '%arrest%' THEN 1 ELSE 0 END) as arrests,
+                        ROUND((SUM(CASE WHEN LOWER(stop_outcome) LIKE '%arrest%' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)), 2) as arrest_rate
+                    FROM {table_name} 
+                    WHERE {race_col} IS NOT NULL AND LOWER({race_col}) IN ('black', 'white')
+                    GROUP BY {race_col}
+                    ORDER BY arrest_rate DESC
+                    """
+                else:
+                    sql_query = f"SELECT 'Arrest or race data not available in this dataset' as message, 0 as count"
+                    
             elif 'peak hour' in question_lower or 'hour' in question_lower:
-                sql_query = f"""
-                SELECT CAST(substr(time, 1, 2) AS INTEGER) as hour, 
-                       COUNT(*) as stop_count 
-                FROM {table_name} 
-                WHERE time IS NOT NULL AND length(time) >= 2
-                GROUP BY hour 
-                ORDER BY stop_count DESC
-                """
-            
-            elif 'month' in question_lower or 'over time' in question_lower:
-                sql_query = f"""
-                SELECT strftime('%Y-%m', date) as month, 
-                       COUNT(*) as stops 
-                FROM {table_name} 
-                WHERE date IS NOT NULL 
-                GROUP BY month 
-                ORDER BY month
-                """
-            
-            elif 'district' in question_lower and 'highest' in question_lower:
-                sql_query = f"""
-                SELECT district, COUNT(*) as stops 
-                FROM {table_name} 
-                WHERE district IS NOT NULL 
-                GROUP BY district 
-                ORDER BY stops DESC 
-                LIMIT 10
-                """
-            
-            elif 'average age' in question_lower:
-                sql_query = f"""
-                SELECT ROUND(AVG(CAST(driver_age AS FLOAT)), 1) as average_age 
-                FROM {table_name} 
-                WHERE driver_age IS NOT NULL AND driver_age > 0 AND driver_age < 120
-                """
-            
-            elif 'race' in question_lower and 'breakdown' not in question_lower:
-                sql_query = f"""
-                SELECT driver_race, COUNT(*) as stops 
-                FROM {table_name} 
-                WHERE driver_race IS NOT NULL 
-                GROUP BY driver_race 
-                ORDER BY stops DESC
-                """
+                # Handle hourly analysis
+                if 'time' in available_columns:
+                    sql_query = f"""
+                    SELECT CAST(substr(time, 1, 2) AS INTEGER) as hour, 
+                           COUNT(*) as stops 
+                    FROM {table_name} 
+                    WHERE time IS NOT NULL AND length(time) >= 2
+                    GROUP BY CAST(substr(time, 1, 2) AS INTEGER) 
+                    ORDER BY stops DESC 
+                    LIMIT 1
+                    """
+                else:
+                    sql_query = f"SELECT 'Time data not available in this dataset' as message, 0 as count"
+                    
+            elif 'by race' in question_lower or 'race' in question_lower:
+                # Handle race breakdowns
+                if race_col:
+                    if 'arrest' in question_lower and 'arrest_made' in available_columns:
+                        sql_query = f"""
+                        SELECT {race_col} as race, 
+                               COUNT(*) as total_stops,
+                               SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) as total_arrests
+                        FROM {table_name} 
+                        WHERE {race_col} IS NOT NULL 
+                        GROUP BY {race_col} 
+                        ORDER BY total_arrests DESC
+                        """
+                    else:
+                        sql_query = f"""
+                        SELECT {race_col} as race, COUNT(*) as stops 
+                        FROM {table_name} 
+                        WHERE {race_col} IS NOT NULL 
+                        GROUP BY {race_col} 
+                        ORDER BY stops DESC
+                        """
+                else:
+                    sql_query = f"SELECT 'Race data not available in this dataset' as message, 0 as count"
+                    
+            elif 'district' in question_lower:
+                # Handle district queries
+                district_columns = ['district', 'police_district', 'precinct', 'beat', 'sector']
+                district_col = None
+                for col in district_columns:
+                    if col in available_columns:
+                        district_col = col
+                        break
+                
+                if district_col:
+                    sql_query = f"""
+                    SELECT {district_col} as district, COUNT(*) as stops 
+                    FROM {table_name} 
+                    WHERE {district_col} IS NOT NULL 
+                    GROUP BY {district_col} 
+                    ORDER BY stops DESC
+                    """
+                else:
+                    sql_query = f"SELECT 'District data not available in this dataset' as message, 0 as count"
                 
             else:
                 # Check if LLM is available for complex queries
@@ -254,7 +314,6 @@ Columns: {columns_list}
                     logger.info("Using fallback query due to missing API key")
                 else:
                     # Try the complex method as fallback
-                    table_info = self.get_table_info(department)
                     if not table_info:
                         # Ultimate fallback - simple count query
                         sql_query = f"SELECT COUNT(*) as total_stops FROM {table_name}"
