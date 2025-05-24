@@ -87,11 +87,11 @@ docker-compose.yml
 # Documentation drafts
 *_SUMMARY.md
 *_REPORT.md
-DEPLOYMENT.md
 
 # Police Data Analytics Platform .gitignore
 
 # Environment variables and secrets
+.env
 .env.local
 .env.production
 .env.staging
