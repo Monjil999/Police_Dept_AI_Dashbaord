@@ -1,0 +1,213 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+*.env
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/
+
+# Cache
+.cache/
+.pytest_cache/
+
+# Data files
+data/
+*.csv
+*.json
+*.parquet
+
+# Redis
+dump.rdb
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Testing files
+test_*.py
+*_test.py
+*_demo.py
+
+# Deployment files
+deploy.py
+Dockerfile*
+docker-compose.yml
+
+# Documentation drafts
+*_SUMMARY.md
+*_REPORT.md
+DEPLOYMENT.md
+
+# Police Data Analytics Platform .gitignore
+
+# Environment variables and secrets
+.env.local
+.env.production
+.env.staging
+*.key
+
+# Database files
+police_data.db
+police_data.db-journal
+*.sqlite
+*.sqlite3
+*.db
+
+# Cache and temporary files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.cache/
+.pytest_cache/
+
+# Data files and downloads
+data/
+downloads/
+*.csv
+*.xlsx
+*.xls
+*.zip
+*.json.gz
+
+# Logs
+logs/
+*.log
+debug.log
+error.log
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Python virtual environments
+venv/
+env/
+ENV/
+.venv/
+.ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Streamlit
+.streamlit/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Redis dump files
+dump.rdb
+
+# Temporary upload files
+uploads/
+temp/
+tmp/ 

@@ -1,0 +1,44 @@
+# Police Data Analytics Platform Dependencies
+
+# Core Framework
+streamlit>=1.28.0
+pandas>=1.5.0
+numpy>=1.24.0
+
+# Data Visualization
+plotly>=5.17.0
+
+# Database & Caching
+sqlalchemy>=2.0.0
+redis>=4.5.0
+
+# HTTP & Data Fetching
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# AI/LLM Integration
+groq>=0.4.0
+
+# Data Processing
+openpyxl>=3.1.0
+
+# Environment Management
+python-dotenv>=1.0.0
+
+# Date/Time Processing
+python-dateutil>=2.8.0
+
+# Utilities
+urllib3>=1.26.0
+
+# Additional dependencies
+aiohttp==3.9.1
+geopandas==0.14.1
+folium==0.15.1
+streamlit-folium==0.15.0
+langsmith==0.0.69
+
+# Optional: Development Dependencies
+# pytest>=7.0.0
+# black>=23.0.0
+# flake8>=6.0.0 
