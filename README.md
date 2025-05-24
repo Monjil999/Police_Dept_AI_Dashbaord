@@ -9,7 +9,7 @@
 
 Transform police department data into comprehensive analytics dashboards with AI-powered natural language querying. Built for transparency, accountability, and data-driven policing insights.
 
-![Police Analytics Dashboard]
+
 <img width="1422" alt="image" src="https://github.com/user-attachments/assets/c8aa803c-c381-444f-9da2-fd164fe56a06" />
 
 
