@@ -89,18 +89,26 @@ class PoliceAnalyticsApp:
         st.markdown("""
         **Advanced police data analytics powered by AI - From raw data to actionable insights in seconds**
         
-        ✨ **Stretch Goals Implemented:**
-        - 🔍 **Live Department Search**: Search any police department across both major data portals
-        - 📊 **Multi-Tab Dashboard**: 5 comprehensive tabs with executive summary, search analysis, temporal trends, demographics, and geospatial mapping
-        - 🎛️ **Advanced Filtering**: Date, time, demographics, location, and incident-specific filters with real-time record counts
-        - 🗺️ **Geospatial Heat Maps**: Interactive maps showing stop patterns by district and time
-        - 🤖 **AI-Powered Q&A**: Natural language queries with sub-10 second responses using Groq's deepseek-r1-distill-llama-70b
-        - ⚡ **Performance Optimized**: Sub-45 second dashboard loads with intelligent caching
+        ✨ **Live Demo Features:**
+        - 🔍 **4 Police Departments**: Seattle, Philadelphia, Chicago, Los Angeles (real data)
+        - 📊 **Multi-Tab Dashboard**: 5 comprehensive tabs with interactive visualizations
+        - 🤖 **AI-Powered Q&A**: Natural language queries with sub-10 second responses
+        - 🗺️ **Geospatial Analytics**: Interactive maps showing stop patterns and distributions
+        - ⚡ **Cloud Optimized**: Fast loading with intelligent data processing and memory optimization
         
         🎯 **Core Features:**
-        - **Live Data Discovery**: Search across Stanford Open Policing and Police Data Initiative datasets
-        - **CompStat-style Dashboard**: Interactive visualizations with KPIs for search rates, hit rates, use of force, and demographics
+        - **Live Data Discovery**: Real-time download from Stanford Open Policing and Police Data Initiative
+        - **CompStat-style Dashboard**: Interactive KPIs for arrest rates, citations, demographics, and temporal patterns
         - **Natural Language Interface**: Ask complex questions in plain English and get instant SQL-powered answers
+        - **Dynamic Data Handling**: Automatically adapts to different police department data schemas
+        - **Performance Monitoring**: Real-time latency tracking with performance targets
+        
+        🎯 **Try These Sample Questions:**
+        - "How many arrests were made by race?"
+        - "What are the peak hours for police stops?"
+        - "Show me the arrest rate comparison between Black and White individuals"
+        - "What is the total number of stops?"
+        - "Which district has the highest number of stops?"
         """)
         st.divider()
     
@@ -108,20 +116,16 @@ class PoliceAnalyticsApp:
         """Render department selection interface."""
         # Add the detailed user requirements interface
         with st.expander("🔧 **Advanced: Specify Detailed Data Requirements**", expanded=False):
+            st.error("🚫 **Note: This advanced search feature is currently disabled and not functional.**")
             st.markdown("""
-            For more specific data requirements, use our detailed questionnaire:
+            ⚠️ **This feature is under development and currently not working.**
+            
+            Please use the Quick Select or Live Search options above instead.
             """)
             
-            if st.button("📋 **Open Detailed Requirements Form**"):
-                st.session_state.show_requirements = True
-            
-            if st.session_state.get('show_requirements', False):
-                from user_input_interface import collect_user_requirements
-                requirements = collect_user_requirements()
-                if requirements:
-                    st.session_state.user_requirements = requirements
-                    st.session_state.show_requirements = False
-                    st.rerun()
+            # Disabled form
+            st.markdown("---")
+            st.markdown("*Advanced requirements form would appear here when functional.*")
         
         col1, col2 = st.columns([2, 1])
         
@@ -402,19 +406,27 @@ class PoliceAnalyticsApp:
         ### 🏗️ Technical Architecture
         
         **Data Pipeline:**
-        - Live search across Stanford Open Policing and Police Data Initiative
-        - Automated data download and caching in SQLite database
-        - Redis caching for improved performance
+        - **Live Data Sources:** Stanford Open Policing Project & Police Data Initiative
+        - **Real-time Processing:** Automated download with chunked processing (25K-500K rows)
+        - **Memory Optimization:** 70-80% reduction through data type optimization
+        - **Storage:** SQLite database with Redis caching for performance
         
         **AI Stack:**
-        - **LLM Model:** Groq API with deepseek-r1-distill-llama-70b
-        - **Text-to-SQL:** Custom prompt engineering with schema awareness
-        - **Performance:** Sub-10 second response times for most queries
+        - **LLM Model:** Groq API with DeepSeek-R1-Distill-Llama-70B
+        - **Text-to-SQL:** Dynamic schema-aware prompt engineering
+        - **Performance:** Sub-10 second response times with real-time monitoring
+        - **Query Types:** Basic analytics, comparative analysis, and complex aggregations
         
-        **Visualization:**
-        - Interactive Plotly charts and maps
-        - Real-time filtering and data exploration
-        - CompStat-style KPI dashboards
+        **Dashboard & Visualization:**
+        - **Framework:** Streamlit with interactive Plotly charts
+        - **Adaptive UI:** Dynamic handling of different police department schemas
+        - **5 Analysis Tabs:** Overview, Analysis, Temporal, Demographics, Geography
+        - **Performance Targets:** ≤45s dashboard loads, ≤10s AI responses
+        
+        **Cloud Deployment:**
+        - **Platform:** Streamlit Cloud with automatic environment detection
+        - **Optimization:** Reduced memory limits for cloud compatibility
+        - **Real-time Updates:** GitHub integration for continuous deployment
         """)
         
         # Performance summary

@@ -12,6 +12,12 @@ logger = logging.getLogger(__name__)
 
 class PoliceDashboard:
     def __init__(self):
+        """Initialize the Police Dashboard with configuration."""
+        self.config = {
+            'chart_height': 400,
+            'map_height': 500,
+            'color_scheme': 'viridis'
+        }
         self.color_palette = {
             'primary': '#1f77b4',
             'secondary': '#ff7f0e', 
@@ -20,122 +26,186 @@ class PoliceDashboard:
             'info': '#9467bd'
         }
     
+    def _get_empty_metrics(self) -> Dict:
+        """Return empty metrics structure when data is unavailable."""
+        return {
+            'total_stops': 0,
+            'arrests': 0,
+            'arrest_rate': "0%",
+            'citations': 0,
+            'citation_rate': "0%",
+            'warnings': 0,
+            'warning_rate': "0%",
+            'date_range': "Unknown",
+            'avg_age': "Unknown",
+            'unique_locations': 0,
+            'gender_distribution': {},
+            'race_distribution': {}
+        }
+    
     def generate_kpi_metrics(self, df: pd.DataFrame) -> Dict:
-        """Generate key performance indicators from police data."""
+        """Generate key performance indicators from the data."""
         try:
-            total_stops = len(df)
-            available_columns = list(df.columns)
+            if df is None or len(df) == 0:
+                return self._get_empty_metrics()
             
-            # Calculate citation and warning rates (which ARE available)
-            citation_rate = 0
-            citation_data_available = 'citation_issued' in df.columns
-            if citation_data_available:
-                citation_rate = (df['citation_issued'].sum() / total_stops * 100) if total_stops > 0 else 0
+            metrics = {}
             
-            warning_rate = 0
-            warning_data_available = 'warning_issued' in df.columns
-            if warning_data_available:
-                warning_rate = (df['warning_issued'].sum() / total_stops * 100) if total_stops > 0 else 0
+            # Basic counts
+            metrics['total_stops'] = len(df)
             
-            force_rate = 0
-            force_data_available = 'use_of_force' in df.columns
-            if force_data_available:
-                force_rate = (df['use_of_force'].sum() / total_stops * 100) if total_stops > 0 else 0
+            # Get unique locations
+            location_cols = ['location', 'address', 'street']
+            unique_locations = 0
+            for col in location_cols:
+                if col in df.columns:
+                    unique_locations = df[col].nunique()
+                    break
+            metrics['unique_locations'] = unique_locations
             
-            arrest_rate = 0
+            # Calculate arrest rate - handle different schemas
+            arrests = 0
             if 'arrest_made' in df.columns:
-                arrest_rate = (df['arrest_made'].sum() / total_stops * 100) if total_stops > 0 else 0
+                try:
+                    if df['arrest_made'].dtype in ['int64', 'float64', 'bool']:
+                        arrests = int(df['arrest_made'].sum())
+                    else:
+                        arrests = len(df[df['arrest_made'] == 1])
+                except:
+                    arrests = 0
             elif 'stop_outcome' in df.columns:
-                arrest_count = df['stop_outcome'].str.contains('ARREST', case=False, na=False).sum()
-                arrest_rate = (arrest_count / total_stops * 100) if total_stops > 0 else 0
+                try:
+                    arrest_mask = df['stop_outcome'].str.contains('arrest', case=False, na=False)
+                    arrests = int(arrest_mask.sum())
+                except:
+                    arrests = 0
             
-            # Date range
+            metrics['arrests'] = arrests
+            metrics['arrest_rate'] = f"{(arrests / len(df) * 100):.1f}%" if len(df) > 0 else "0%"
+            
+            # Calculate citation rate - handle different schemas
+            citations = 0
+            if 'citation_issued' in df.columns:
+                try:
+                    if df['citation_issued'].dtype in ['int64', 'float64', 'bool']:
+                        citations = int(df['citation_issued'].sum())
+                    else:
+                        citations = len(df[df['citation_issued'] == 1])
+                except:
+                    citations = 0
+            elif 'stop_outcome' in df.columns:
+                try:
+                    citation_mask = df['stop_outcome'].str.contains('citation', case=False, na=False)
+                    citations = int(citation_mask.sum())
+                except:
+                    citations = 0
+            
+            if citations > 0:
+                metrics['citations'] = citations
+                metrics['citation_rate'] = f"{(citations / len(df) * 100):.1f}%"
+            else:
+                metrics['citations'] = "N/A"
+                metrics['citation_rate'] = "N/A"
+            
+            # Calculate warning rate - handle different schemas
+            warnings = 0
+            if 'warning_issued' in df.columns:
+                try:
+                    if df['warning_issued'].dtype in ['int64', 'float64', 'bool']:
+                        warnings = int(df['warning_issued'].sum())
+                    else:
+                        warnings = len(df[df['warning_issued'] == 1])
+                except:
+                    warnings = 0
+            elif 'stop_outcome' in df.columns:
+                try:
+                    warning_mask = df['stop_outcome'].str.contains('warning', case=False, na=False)
+                    warnings = int(warning_mask.sum())
+                except:
+                    warnings = 0
+            
+            if warnings > 0:
+                metrics['warnings'] = warnings
+                metrics['warning_rate'] = f"{(warnings / len(df) * 100):.1f}%"
+            else:
+                metrics['warnings'] = "N/A"
+                metrics['warning_rate'] = "N/A"
+            
+            # Date range calculation - improved
             date_range = "Unknown"
             if 'date' in df.columns:
                 try:
-                    valid_dates = pd.to_datetime(df['date'], errors='coerce').dropna()
-                    if len(valid_dates) > 0:
-                        date_range = f"{valid_dates.min().strftime('%Y-%m-%d')} to {valid_dates.max().strftime('%Y-%m-%d')}"
-                except:
-                    pass
-            
-            # Peak hour analysis - FIXED
-            peak_hour = "Unknown"
-            if 'time' in df.columns:
-                try:
-                    # Extract hour from time strings like "02:19:37"
+                    # Try multiple date parsing approaches
                     df_temp = df.copy()
-                    df_temp['hour'] = pd.to_numeric(df_temp['time'].str[:2], errors='coerce')
-                    df_temp = df_temp.dropna(subset=['hour'])
-                    if len(df_temp) > 0:
-                        hour_counts = df_temp['hour'].value_counts()
-                        if len(hour_counts) > 0:
-                            peak_hour = f"{int(hour_counts.index[0]):02d}:00"
+                    
+                    # Convert categorical to string first if needed
+                    if df_temp['date'].dtype.name == 'category':
+                        df_temp['date'] = df_temp['date'].astype(str)
+                    
+                    # First try: assume standard format
+                    df_temp['parsed_date'] = pd.to_datetime(df_temp['date'], errors='coerce')
+                    valid_dates = df_temp['parsed_date'].dropna()
+                    
+                    if len(valid_dates) > 0:
+                        start_date = valid_dates.min().strftime('%Y-%m-%d')
+                        end_date = valid_dates.max().strftime('%Y-%m-%d')
+                        date_range = f"{start_date} to {end_date}"
+                        logger.info(f"Calculated date range: {date_range}")
+                    else:
+                        # Try alternative formats
+                        for fmt in ['%m/%d/%Y', '%Y-%m-%d', '%d-%m-%Y', '%Y/%m/%d']:
+                            try:
+                                df_temp['parsed_date'] = pd.to_datetime(df_temp['date'], format=fmt, errors='coerce')
+                                valid_dates = df_temp['parsed_date'].dropna()
+                                if len(valid_dates) > 0:
+                                    start_date = valid_dates.min().strftime('%Y-%m-%d')
+                                    end_date = valid_dates.max().strftime('%Y-%m-%d')
+                                    date_range = f"{start_date} to {end_date}"
+                                    logger.info(f"Calculated date range with format {fmt}: {date_range}")
+                                    break
+                            except:
+                                continue
                 except Exception as e:
-                    logger.error(f"Error calculating peak hour: {e}")
-                    pass
+                    logger.warning(f"Error calculating date range: {e}")
+                    date_range = "Date parsing failed"
             
-            # Top district
-            top_district = "Unknown"
-            if 'district' in df.columns:
-                district_counts = df['district'].value_counts()
-                if len(district_counts) > 0:
-                    top_district = district_counts.index[0]
-            
-            # Age statistics
-            avg_age = "Unknown"
+            # Age calculation
+            avg_age = "N/A"
             if 'driver_age' in df.columns:
-                valid_ages = pd.to_numeric(df['driver_age'], errors='coerce').dropna()
-                if len(valid_ages) > 0:
-                    avg_age = f"{valid_ages.mean():.1f} years"
+                try:
+                    # Clean age data
+                    ages = pd.to_numeric(df['driver_age'], errors='coerce')
+                    valid_ages = ages[(ages > 0) & (ages < 120)].dropna()
+                    
+                    if len(valid_ages) > 0:
+                        avg_age = f"{valid_ages.mean():.1f}"
+                except:
+                    avg_age = "N/A"
             
-            # Geographic coverage
-            unique_locations = 0
-            if 'location' in df.columns:
-                unique_locations = df['location'].nunique()
-            elif all(col in df.columns for col in ['lat', 'longitude']):
-                # Count unique coordinate pairs
-                coords = df[['lat', 'longitude']].dropna()
-                unique_locations = len(coords.drop_duplicates())
+            # Set all metrics
+            metrics['date_range'] = date_range
+            metrics['avg_age'] = avg_age
             
-            return {
-                'total_stops': total_stops,
-                'citation_rate': round(citation_rate, 2),
-                'warning_rate': round(warning_rate, 2),
-                'force_rate': round(force_rate, 2),
-                'arrest_rate': round(arrest_rate, 2),
-                'date_range': date_range,
-                'unique_districts': df['district'].nunique() if 'district' in df.columns else 0,
-                'peak_hour': peak_hour,
-                'top_district': top_district,
-                'avg_age': avg_age,
-                'unique_locations': unique_locations,
-                # Availability flags
-                'citation_data_available': citation_data_available,
-                'warning_data_available': warning_data_available,
-                'force_data_available': force_data_available,
-                'available_columns': available_columns
-            }
+            # Gender distribution
+            if 'driver_gender' in df.columns:
+                gender_dist = df['driver_gender'].value_counts()
+                metrics['gender_distribution'] = gender_dist.to_dict()
+            else:
+                metrics['gender_distribution'] = {}
+            
+            # Race distribution
+            if 'driver_race' in df.columns:
+                race_dist = df['driver_race'].value_counts()
+                metrics['race_distribution'] = race_dist.to_dict()
+            else:
+                metrics['race_distribution'] = {}
+            
+            logger.info(f"Generated metrics: {len(metrics)} items including date range: {metrics['date_range']}")
+            return metrics
             
         except Exception as e:
-            logger.error(f"Error calculating KPIs: {e}")
-            return {
-                'total_stops': len(df) if df is not None else 0,
-                'citation_rate': 0,
-                'warning_rate': 0,
-                'force_rate': 0,
-                'arrest_rate': 0,
-                'date_range': "Unknown",
-                'unique_districts': 0,
-                'peak_hour': "Unknown",
-                'top_district': "Unknown", 
-                'avg_age': "Unknown",
-                'unique_locations': 0,
-                'citation_data_available': False,
-                'warning_data_available': False,
-                'force_data_available': False,
-                'available_columns': []
-            }
+            logger.error(f"Error generating metrics: {e}")
+            return self._get_empty_metrics()
     
     def display_kpi_cards(self, metrics: Dict):
         """Display KPI metrics in card format."""
@@ -156,16 +226,16 @@ class PoliceDashboard:
         with col2:
             st.metric(
                 label="Arrest Rate",
-                value=f"{metrics['arrest_rate']}%",
+                value=f"{metrics['arrest_rate']}",
                 help="Percentage of stops that resulted in arrest"
             )
         
         with col3:
             # Check if citation data exists
-            if 'citation_data_available' in metrics and metrics['citation_data_available']:
+            if 'citation_rate' in metrics and metrics['citation_rate'] != "N/A":
                 st.metric(
                     label="Citation Rate", 
-                    value=f"{metrics['citation_rate']}%",
+                    value=f"{metrics['citation_rate']}",
                     help="Percentage of stops that resulted in a citation"
                 )
             else:
@@ -177,10 +247,10 @@ class PoliceDashboard:
         
         with col4:
             # Check if warning data exists
-            if 'warning_data_available' in metrics and metrics['warning_data_available']:
+            if 'warning_rate' in metrics and metrics['warning_rate'] != "N/A":
                 st.metric(
                     label="Warning Rate",
-                    value=f"{metrics['warning_rate']}%",
+                    value=f"{metrics['warning_rate']}",
                     help="Percentage of stops that resulted in a warning"
                 )
             else:
@@ -194,26 +264,35 @@ class PoliceDashboard:
         col5, col6, col7, col8 = st.columns(4)
         
         with col5:
-            # Check if force data exists
-            if 'force_data_available' in metrics and metrics['force_data_available']:
+            # Check if warning data exists and is numeric
+            if 'warnings' in metrics and isinstance(metrics['warnings'], (int, float)) and metrics['warnings'] > 0:
                 st.metric(
-                    label="Force Rate",
-                    value=f"{metrics['force_rate']}%",
-                    help="Percentage of stops involving use of force"
+                    label="Warnings",
+                    value=f"{metrics['warnings']:,}",
+                    help="Number of warnings issued"
                 )
             else:
                 st.metric(
-                    label="Force Rate",
-                    value="Not Available",
-                    help="Use of force data not available in this dataset"
+                    label="Warnings",
+                    value=metrics.get('warnings', '0'),
+                    help="Warning data not available or no warnings issued"
                 )
         
         with col6:
-            st.metric(
-                label="Districts",
-                value=f"{metrics['unique_districts']}",
-                help="Number of unique districts in data"
-            )
+            # Check if citation data exists and is numeric
+            citation_value = metrics.get('citations', 0)
+            if isinstance(citation_value, (int, float)):
+                st.metric(
+                    label="Citations",
+                    value=f"{citation_value:,}",
+                    help="Number of citations issued"
+                )
+            else:
+                st.metric(
+                    label="Citations",
+                    value=str(citation_value),
+                    help="Citation data not available"
+                )
         
         with col7:
             st.metric(
@@ -225,14 +304,12 @@ class PoliceDashboard:
         with col8:
             # Show what data IS available
             available_features = []
-            if 'arrest_made' in metrics.get('available_columns', []):
+            if 'arrests' in metrics and isinstance(metrics.get('arrests'), (int, float)) and metrics['arrests'] > 0:
                 available_features.append("Arrests")
-            if 'citation_issued' in metrics.get('available_columns', []):
+            if 'citations' in metrics and isinstance(metrics.get('citations'), (int, float)) and metrics['citations'] > 0:
                 available_features.append("Citations")
-            if 'warning_issued' in metrics.get('available_columns', []):
+            if 'warnings' in metrics and isinstance(metrics.get('warnings'), (int, float)) and metrics['warnings'] > 0:
                 available_features.append("Warnings")
-            if 'use_of_force' in metrics.get('available_columns', []):
-                available_features.append("Force")
             
             st.metric(
                 label="Available Data",
@@ -245,29 +322,15 @@ class PoliceDashboard:
         
         with col9:
             st.metric(
-                label="Peak Hour",
-                value=metrics.get('peak_hour', 'Unknown'),
-                help="Hour with the most police stops"
+                label="Average Age",
+                value=metrics['avg_age'],
+                help="Average age of stopped individuals"
             )
         
         with col10:
             st.metric(
-                label="Top District",
-                value=str(metrics.get('top_district', 'Unknown'))[:15],
-                help="District with the most stops"
-            )
-        
-        with col11:
-            st.metric(
-                label="Average Age",
-                value=metrics.get('avg_age', 'Unknown'),
-                help="Average age of stopped individuals"
-            )
-        
-        with col12:
-            st.metric(
                 label="Locations",
-                value=f"{metrics.get('unique_locations', 0):,}",
+                value=f"{metrics['unique_locations']:,}",
                 help="Number of unique stop locations"
             )
     
@@ -551,8 +614,23 @@ class PoliceDashboard:
                 st.write("**Dataset Overview:**")
                 st.write(f"• Total records: {len(df):,}")
                 st.write(f"• Date range: {metrics['date_range']}")
-                st.write(f"• Districts: {metrics['unique_districts']}")
-                st.write(f"• Peak hour: {metrics['peak_hour']}")
+                st.write(f"• Districts: {df['district'].nunique() if 'district' in df.columns else 0}")
+                
+                # Calculate peak hour on demand
+                peak_hour = "Unknown"
+                if 'time' in df.columns:
+                    try:
+                        df_temp = df.copy()
+                        df_temp['hour'] = pd.to_numeric(df_temp['time'].str[:2], errors='coerce')
+                        df_temp = df_temp.dropna(subset=['hour'])
+                        if len(df_temp) > 0:
+                            hour_counts = df_temp['hour'].value_counts()
+                            if len(hour_counts) > 0:
+                                peak_hour = f"{int(hour_counts.index[0]):02d}:00"
+                    except:
+                        peak_hour = "Unknown"
+                
+                st.write(f"• Peak hour: {peak_hour}")
                 if 'driver_race' in df.columns:
                     races = df['driver_race'].nunique()
                     st.write(f"• Race categories: {races}")

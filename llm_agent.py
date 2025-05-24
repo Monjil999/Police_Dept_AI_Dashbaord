@@ -162,25 +162,90 @@ Columns: {columns_list}
             # Simple direct query generation based on question patterns
             question_lower = question.lower()
             
-            # Pattern matching for common queries
-            if 'arrest' in question_lower and any(race in question_lower for race in ['black', 'white', 'hispanic', 'race']):
-                if 'black' in question_lower:
-                    sql_query = f"SELECT COUNT(*) as arrest_count FROM {table_name} WHERE arrest_made = 1 AND driver_race = 'black'"
-                else:
-                    sql_query = f"SELECT driver_race, COUNT(*) as arrest_count FROM {table_name} WHERE arrest_made = 1 AND driver_race IS NOT NULL GROUP BY driver_race ORDER BY arrest_count DESC"
-            
+            # Basic pattern matching for common queries with better logic
+            if 'total number of stops' in question_lower or 'how many stops' in question_lower:
+                sql_query = f"SELECT COUNT(*) as total_stops FROM {table_name}"
+                
+            elif 'how many arrests' in question_lower and 'race' not in question_lower:
+                sql_query = f"SELECT COUNT(*) as total_arrests FROM {table_name} WHERE arrest_made = 1"
+                
+            elif 'arrest rate' in question_lower and ('black' in question_lower and 'white' in question_lower):
+                # Comparative arrest rate query
+                sql_query = f"""
+                SELECT driver_race, 
+                       COUNT(*) as total_stops,
+                       SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) as arrests,
+                       ROUND(100.0 * SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) / COUNT(*), 2) as arrest_rate
+                FROM {table_name} 
+                WHERE driver_race IN ('black', 'white') 
+                GROUP BY driver_race 
+                ORDER BY arrest_rate DESC
+                """
+                
+            elif 'arrest' in question_lower and 'race' in question_lower:
+                sql_query = f"""
+                SELECT driver_race, 
+                       COUNT(*) as total_stops,
+                       SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) as arrests,
+                       ROUND(100.0 * SUM(CASE WHEN arrest_made = 1 THEN 1 ELSE 0 END) / COUNT(*), 2) as arrest_rate
+                FROM {table_name} 
+                WHERE driver_race IS NOT NULL 
+                GROUP BY driver_race 
+                ORDER BY arrests DESC
+                """
+                
+            elif 'citation' in question_lower and 'issued' in question_lower:
+                sql_query = f"SELECT COUNT(*) as total_citations FROM {table_name} WHERE citation_issued = 1"
+                
+            elif 'warning' in question_lower and 'issued' in question_lower:
+                sql_query = f"SELECT COUNT(*) as total_warnings FROM {table_name} WHERE warning_issued = 1"
+                
             elif 'peak hour' in question_lower or 'hour' in question_lower:
-                sql_query = f"SELECT CAST(substr(time, 1, 2) AS INTEGER) as hour, COUNT(*) as stop_count FROM {table_name} WHERE time IS NOT NULL GROUP BY hour ORDER BY stop_count DESC"
+                sql_query = f"""
+                SELECT CAST(substr(time, 1, 2) AS INTEGER) as hour, 
+                       COUNT(*) as stop_count 
+                FROM {table_name} 
+                WHERE time IS NOT NULL AND length(time) >= 2
+                GROUP BY hour 
+                ORDER BY stop_count DESC
+                """
             
-            elif 'month' in question_lower or 'time' in question_lower:
-                sql_query = f"SELECT strftime('%Y-%m', date) as month, COUNT(*) as stops FROM {table_name} WHERE date IS NOT NULL GROUP BY month ORDER BY month"
+            elif 'month' in question_lower or 'over time' in question_lower:
+                sql_query = f"""
+                SELECT strftime('%Y-%m', date) as month, 
+                       COUNT(*) as stops 
+                FROM {table_name} 
+                WHERE date IS NOT NULL 
+                GROUP BY month 
+                ORDER BY month
+                """
             
-            elif 'district' in question_lower:
-                sql_query = f"SELECT district, COUNT(*) as stops FROM {table_name} WHERE district IS NOT NULL GROUP BY district ORDER BY stops DESC"
+            elif 'district' in question_lower and 'highest' in question_lower:
+                sql_query = f"""
+                SELECT district, COUNT(*) as stops 
+                FROM {table_name} 
+                WHERE district IS NOT NULL 
+                GROUP BY district 
+                ORDER BY stops DESC 
+                LIMIT 10
+                """
             
-            elif 'race' in question_lower:
-                sql_query = f"SELECT driver_race, COUNT(*) as stops FROM {table_name} WHERE driver_race IS NOT NULL GROUP BY driver_race ORDER BY stops DESC"
+            elif 'average age' in question_lower:
+                sql_query = f"""
+                SELECT ROUND(AVG(CAST(driver_age AS FLOAT)), 1) as average_age 
+                FROM {table_name} 
+                WHERE driver_age IS NOT NULL AND driver_age > 0 AND driver_age < 120
+                """
             
+            elif 'race' in question_lower and 'breakdown' not in question_lower:
+                sql_query = f"""
+                SELECT driver_race, COUNT(*) as stops 
+                FROM {table_name} 
+                WHERE driver_race IS NOT NULL 
+                GROUP BY driver_race 
+                ORDER BY stops DESC
+                """
+                
             else:
                 # Check if LLM is available for complex queries
                 if not self.llm_available:
@@ -201,21 +266,25 @@ Columns: {columns_list}
                             model=GROQ_MODEL,
                             messages=[
                                 {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": f"Generate a SQL query to answer: {question}"}
+                                {"role": "user", "content": f"Generate SQL for: {question}"}
                             ],
                             temperature=0.1,
-                            max_tokens=300
+                            max_tokens=500
                         )
                         
-                        sql_query = response.choices[0].message.content.strip()
-                        sql_query = self._clean_sql_response(sql_query)
+                        sql_query = self._clean_sql_response(response.choices[0].message.content)
             
-            logger.info(f"Generated SQL: {sql_query}")
-            return sql_query, time.time() - start_time
+            generation_time = time.time() - start_time
+            logger.info(f"Generated SQL: {sql_query[:100]}...")
+            
+            return sql_query, generation_time
             
         except Exception as e:
+            generation_time = time.time() - start_time
             logger.error(f"Error generating SQL query: {e}")
-            return None, time.time() - start_time
+            # Return a safe fallback query
+            table_name = self.db_manager._get_table_name(department)
+            return f"SELECT COUNT(*) as total_records FROM {table_name}", generation_time
     
     def _clean_sql_response(self, sql_query: str) -> str:
         """Clean and fix SQL response."""
